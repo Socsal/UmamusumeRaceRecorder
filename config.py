@@ -20,8 +20,7 @@ import argparse
 import re
 
 
-pytesseract.pytesseract.tesseract_cmd = resource_path("assets/tessdata/tesseract.exe")
-os.environ['TESSDATA_PREFIX'] = resource_path("assets/tessdata/tessdata")
+
 # ========= 模板路径配置 =========
 TEMPLATE_Seiunsky   = resource_path("assets/templates/TEMPLATE_Seiunsky.png")
 TEMPLATE_SeiunskyDFB = resource_path("assets/templates/TEMPLATE_SeiunskyDFB.png")

@@ -20,7 +20,6 @@ def main():
     print(f"→ 已选择设备：{device_id}，开始监听…\n")
     try:
         while True:
-#            print("=" * 40)
             screen_bgr = adb_screenshot(device_id)
             if screen_bgr is not None:
                 recorder.process_frame(screen_bgr)
