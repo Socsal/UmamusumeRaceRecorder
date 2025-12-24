@@ -4,25 +4,40 @@ import subprocess
 import cv2
 import numpy as np
 
-# ========= 路径工具 =========
+# ========= 获取资源路径 =========
 def resource_path(relative_path):
     if hasattr(sys, '_MEIPASS'):
         return os.path.join(sys._MEIPASS, relative_path)
     return os.path.join(os.path.abspath("."), relative_path)
 
+# ========= 获取应用路径 =========
 def base_dir_path():
     if getattr(sys, 'frozen', False):
         return os.path.dirname(sys.executable)
     return os.path.abspath(".")
 
-ADB_PATH = resource_path("adbtools/adb.exe")
+# ========= 定义ADB路径 =========
+ADB_PATH = resource_path("assets/adbtools/adb.exe")
 
-# ========= ADB =========
+# ========= 列出ADB设备 =========
 def list_connected_devices():
-    raw = subprocess.check_output([ADB_PATH, "devices"], stderr=subprocess.DEVNULL).decode()
-    lines = [l for l in raw.splitlines() if "\tdevice" in l]
-    return [l.split()[0] for l in lines]
+    try:
+        raw = subprocess.check_output([ADB_PATH, "devices"], stderr=subprocess.DEVNULL).decode('utf-8')
+        lines = [l.strip() for l in raw.splitlines() if l.strip() and not l.startswith("List of devices")]
+        devices = []
+        for line in lines:
+            parts = line.split()
+            if parts[1] == "device":
+                devices.append(parts[0])
+        return devices
+    except Exception:
+        print("未检测到连接的设备，请连接设备后重试。")
+    
 
+
+
+
+# ========= 选择ADB设备 =========
 def choose_device_interactively(devices):
     for i, d in enumerate(devices, 1):
         print(f"[{i}] {d}")
@@ -33,6 +48,7 @@ def choose_device_interactively(devices):
         if s in devices:
             return s
 
+# ========= ADB截图 =========
 def adb_screenshot(device_id):
     try:
         data = subprocess.check_output(
@@ -42,6 +58,7 @@ def adb_screenshot(device_id):
     except Exception:
         return None
 
+# ========= ADB触摸 =========
 def adb_tap(device_id, x, y):
     subprocess.call(
         [ADB_PATH, "-s", device_id, "shell", "input", "tap", str(x), str(y)],

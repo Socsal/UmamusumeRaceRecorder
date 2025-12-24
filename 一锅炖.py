@@ -30,32 +30,30 @@ def base_dir_path():
         return os.path.abspath(".")
 
 
-adb_path = resource_path("adbtools/adb.exe")
-pytesseract.pytesseract.tesseract_cmd = resource_path("tessdata/tesseract.exe")
-os.environ['TESSDATA_PREFIX'] = resource_path("tessdata")
+adb_path = resource_path("assets/adbtools/adb.exe")
+pytesseract.pytesseract.tesseract_cmd = resource_path("assets/tessdata/tesseract.exe")
+os.environ['TESSDATA_PREFIX'] = resource_path("assets/tessdata/tessdata")
 
 # ========= 模板路径配置 =========
-TEMPLATE_Seiunsky   = resource_path("TEMPLATE_Seiunsky.png")
-TEMPLATE_SeiunskyDFB = resource_path("TEMPLATE_SeiunskyDFB.png")
-#TEMPLATE_Kitasanblack = resource_path("TEMPLATE_Kitasanblack.png")
-TEMPLATE_Maruzensky = resource_path("TEMPLATE_Maruzensky.png")
+TEMPLATE_Seiunsky   = resource_path("assets/templates/TEMPLATE_Seiunsky.png")
+TEMPLATE_SeiunskyDFB = resource_path("assets/templates/TEMPLATE_SeiunskyDFB.png")
+#TEMPLATE_Kitasanblack = resource_path("assets/templates/TEMPLATE_Kitasanblack.png")
+TEMPLATE_Maruzensky = resource_path("assets/templates/TEMPLATE_Maruzensky.png")
 
-
-
-TEMPLATE_G1 = resource_path("TEMPLATE_G1.png")
-TEMPLATE_G2 = resource_path("TEMPLATE_G2.png")
-TEMPLATE_G3 = resource_path("TEMPLATE_G3.png")
-TEMPLATE_SP = resource_path("TEMPLATE_SP.png")
-TEMPLATE_8L  = resource_path("TEMPLATE_8L.png")
-TEMPLATE_9L  = resource_path("TEMPLATE_9L.png")
-TEMPLATE_10L = resource_path("TEMPLATE_10L.png")
-TEMPLATE_LON = resource_path("TEMPLATE_LON.png")
-TEMPLATE_Gem = resource_path("TEMPLATE_Gem.png")
+TEMPLATE_G1 = resource_path("assets/templates/TEMPLATE_G1.png")
+TEMPLATE_G2 = resource_path("assets/templates/TEMPLATE_G2.png")
+TEMPLATE_G3 = resource_path("assets/templates/TEMPLATE_G3.png")
+TEMPLATE_SP = resource_path("assets/templates/TEMPLATE_SP.png")
+TEMPLATE_8L  = resource_path("assets/templates/TEMPLATE_8L.png")
+TEMPLATE_9L  = resource_path("assets/templates/TEMPLATE_9L.png")
+TEMPLATE_10L = resource_path("assets/templates/TEMPLATE_10L.png")
+TEMPLATE_LON = resource_path("assets/templates/TEMPLATE_LON.png")
+TEMPLATE_Gem = resource_path("assets/templates/TEMPLATE_Gem.png")
 # 新增三个模板：skip, jitaend, home
-TEMPLATE_Skip = resource_path("TEMPLATE_Skip.png")
-TEMPLATE_JitaEnd = resource_path("TEMPLATE_JitaEnd.png")
-TEMPLATE_Home = resource_path("TEMPLATE_Home.png")
-TEMPLATE_Yinzi = resource_path("TEMPLATE_Yinzi.png")
+TEMPLATE_Skip = resource_path("assets/templates/TEMPLATE_Skip.png")
+TEMPLATE_JitaEnd = resource_path("assets/templates/TEMPLATE_JitaEnd.png")
+TEMPLATE_Home = resource_path("assets/templates/TEMPLATE_Home.png")
+TEMPLATE_Yinzi = resource_path("assets/templates/TEMPLATE_Yinzi.png")
 
 
 
