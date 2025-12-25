@@ -1,17 +1,8 @@
 import cv2
 import pytesseract
 from utils import resource_path
-from config import REGION5, MATCH_THRESHOLD
+from config import REGION5, MATCH_FINE, MATCH_ROUGH
 import os
-import sys
-import subprocess
-import time
-import cv2
-import numpy as np
-from PIL import Image
-import pytesseract
-from datetime import datetime
-import argparse
 import re
 
 
@@ -19,12 +10,12 @@ import re
 # OCR
 pytesseract.pytesseract.tesseract_cmd = resource_path("assets/tessdata/tesseract.exe")
 os.environ['TESSDATA_PREFIX'] = resource_path("assets/tessdata/tessdata")
-MATCH_THRESHOLD = 0.99
-MATCH_ITEM = 0.8
+MATCH_FINE = 0.99
+MATCH_ROUGH = 0.8
 
 
 # ========= 模板匹配函数 =========
-def match_template(img_gray, template_path, threshold=MATCH_THRESHOLD):
+def match_template(img_gray, template_path, threshold=MATCH_FINE):
     tmpl = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
     if tmpl is None:
         print(f"[错误] 模板不存在：{template_path}")
@@ -37,7 +28,7 @@ def match_template(img_gray, template_path, threshold=MATCH_THRESHOLD):
 
 
 # ========= 匹配道具模板函数 =========
-def match_itemtemplate(img_gray, template_path, threshold=MATCH_ITEM):
+def MATCH_ROUGHtemplate(img_gray, template_path, threshold=MATCH_ROUGH):
     # 只在REGION5区域内进行匹配
     x1, y1, x2, y2 = REGION5
     roi = img_gray[y1:y2, x1:x2]
@@ -65,7 +56,7 @@ def match_template_label(img_gray, roi_coords, template_dict):
         res = cv2.matchTemplate(roi, tmpl, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, _ = cv2.minMaxLoc(res)
         #print(f"[匹配度] 模板 {label} 最大匹配值: {max_val:.4f}")
-        if max_val > best_score and max_val >= MATCH_THRESHOLD:
+        if max_val > best_score and max_val >= MATCH_FINE:
             best_score = max_val
             best_label = label
     return best_label
@@ -80,7 +71,7 @@ def match_template_label(img_gray, roi_coords, template_dict):
 
 
 
-def match_template_loc(img_gray, template_path, threshold=MATCH_THRESHOLD):
+def match_template_loc(img_gray, template_path, threshold=MATCH_FINE):
     """
     在整张灰度图上匹配模板，返回匹配中心坐标 (cx, cy) 和匹配矩形 (x, y, w, h)
     若未达到阈值返回 None
@@ -100,6 +91,49 @@ def match_template_loc(img_gray, template_path, threshold=MATCH_THRESHOLD):
     cx = tx + w // 2
     cy = ty + h // 2
     return (cx, cy, tx, ty, w, h, max_val)
+
+
+def match_template_in_region(img_gray, template_path, region, threshold=MATCH_FINE):
+    """
+    在指定区域 (x1,y1,x2,y2) 内匹配模板，返回与 match_template_loc 相同的元组 (cx,cy,tx,ty,w,h,val)
+    未达到阈值返回 None
+    """
+    x1, y1, x2, y2 = region
+    roi = img_gray[y1:y2, x1:x2]
+    tmpl = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
+    if tmpl is None:
+        return None
+    if roi.shape[0] < tmpl.shape[0] or roi.shape[1] < tmpl.shape[1]:
+        return None
+    res = cv2.matchTemplate(roi, tmpl, cv2.TM_CCOEFF_NORMED)
+    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
+    if max_val < threshold:
+        return None
+    tx, ty = max_loc
+    h, w = tmpl.shape
+    cx = x1 + tx + w // 2
+    cy = y1 + ty + h // 2
+
+    return (cx, cy, x1 + tx, y1 + ty, w, h, max_val)
+
+
+
+
+def ocr_number_region(region, image_bgr, psm=7):
+    """在指定区域进行数字 OCR，返回纯数字字符串或空字符串；同时保存二值化图片用于调试"""
+    x1, y1, x2, y2 = region
+    roi = image_bgr[y1:y2, x1:x2]
+    roi_rgb = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB)
+
+    # 转灰度并做 Otsu 二值化，提高识别率
+    roi_gray = cv2.cvtColor(roi_rgb, cv2.COLOR_RGB2GRAY)
+    _, roi_bin = cv2.threshold(roi_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    # 用二值图做 OCR（只允许数字）
+    config = f'--psm {psm} -c tessedit_char_whitelist=0123456789'
+    text = pytesseract.image_to_string(roi_bin, lang='chi_sim', config=config)
+    text = re.sub(r'[^0-9]', '', text or '')
+    return text
 
 
 # ========= OCR辅助函数 =========
