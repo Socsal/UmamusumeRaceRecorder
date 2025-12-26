@@ -60,7 +60,7 @@ class RaceRecorder:
         if not os.path.isfile(log_path):
             with open(log_path, "w", encoding="utf-8") as f:
                 # 写入CSV表头
-                f.write("截图编号,时间戳,类型,等级,比赛名称,身位,附加道具\n")
+                f.write("序号,时间,类型,等级,名称,身位,其他\n")
 
     def _console_output_duplicate_check(self, key, message):
         """控制台输出去重：3秒内不重复显示同一类型信息"""
