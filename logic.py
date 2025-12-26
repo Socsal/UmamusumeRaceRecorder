@@ -11,7 +11,12 @@ import re
 import threading
 from queue import Queue, Empty
 
-log_path = os.path.join(base_dir_path(), "log.txt")
+# 改为CSV日志路径
+log_path = os.path.join(base_dir_path(), "log.csv")
+
+# 控制台输出去重缓存：key->最后输出时间
+console_last_output = {}
+CONSOLE_DUPLICATE_WINDOW = 3  # 3秒内不重复输出同一类型
 
 class RaceRecorder:
     def __init__(self, device_id):
@@ -32,6 +37,15 @@ class RaceRecorder:
         self.last_logs = {}
         self.next_slow_time = None
 
+        # 新增：缓存上一个比赛日志的信息（用于追加道具）
+        self.last_race_log = {
+            "scount": None,
+            "ts": None,
+            "level": None,
+            "name": None,
+            "position": None,
+            "items": []  # 存储该比赛对应的掉落道具
+        }
 
         # 线程与队列，用于异步处理截图识别
         self.frame_queue = Queue(maxsize=8)
@@ -39,11 +53,25 @@ class RaceRecorder:
         self.worker_thread = None
         # 保护 last_logs 和 last_record 的并发访问
         self._lock = threading.Lock()
+        # 保护 last_race_log 的并发访问
+        self._race_log_lock = threading.Lock()
 
-        # 初始化日志文件
+        # 初始化CSV日志文件
         if not os.path.isfile(log_path):
             with open(log_path, "w", encoding="utf-8") as f:
-                f.write("")
+                # 写入CSV表头
+                f.write("截图编号,时间戳,类型,等级,比赛名称,身位,附加道具\n")
+
+    def _console_output_duplicate_check(self, key, message):
+        """控制台输出去重：3秒内不重复显示同一类型信息"""
+        now = datetime.now()
+        with self._lock:
+            last_time = console_last_output.get(key)
+            if last_time and (now - last_time).total_seconds() < CONSOLE_DUPLICATE_WINDOW:
+                return False
+            console_last_output[key] = now
+        print(message)
+        return True
 
     def process_frame(self, screen_bgr):
         # 快速转换并入队，主线程尽量不阻塞
@@ -75,9 +103,10 @@ class RaceRecorder:
             return False
         return True
 
-    def _write_log(self, key, message, now_dt, scount=None):
-        """统一写日志并更新去重记录；scount 可覆盖使用的 screenshot_count
+    def _write_log(self, key, message_parts, now_dt, scount=None):
+        """统一写CSV日志并更新去重记录；scount 可覆盖使用的 screenshot_count
         线程安全：在此函数内统一加锁检查并更新去重字典。
+        message_parts: 元组，对应CSV列（类型,等级,比赛名称,身位,附加道具）
         """
         if scount is None:
             scount = self.screenshot_count
@@ -86,10 +115,59 @@ class RaceRecorder:
                 return False
             self.last_logs[key] = now_dt
         ts = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+        # 构造CSV行（截图编号,时间戳,类型,等级,比赛名称,身位,附加道具）
+        csv_parts = [f"{scount:05d}", ts] + list(message_parts)
+        # 处理空值，替换为"-"
+        csv_parts = [part if part is not None and part != "" else "-" for part in csv_parts]
+        csv_line = ",".join(csv_parts) + "\n"
         # 将文件写入置于锁外以减少临界区时间
         with open(log_path, "a", encoding="utf-8") as f:
-            f.write(f"{scount:05d} | {ts} | {message}\n")
+            f.write(csv_line)
         return True
+
+    def _update_last_race_items(self, items):
+        """更新上一个比赛的道具掉落信息，并同步更新CSV日志"""
+        with self._race_log_lock:
+            if self.last_race_log["scount"] is None:
+                return False
+            # 添加新道具（去重）
+            for item in items:
+                if item not in self.last_race_log["items"]:
+                    self.last_race_log["items"].append(item)
+            items_str = ",".join(self.last_race_log["items"]) if self.last_race_log["items"] else "-"
+            
+            # 读取原有CSV内容，更新对应行
+            temp_log_path = os.path.join(base_dir_path(), "log_temp.csv")
+            updated = False
+            with open(log_path, "r", encoding="utf-8") as f, open(temp_log_path, "w", encoding="utf-8") as temp_f:
+                # 写入表头
+                header = f.readline()
+                temp_f.write(header)
+                # 遍历每一行
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        temp_f.write("\n")
+                        continue
+                    parts = line.split(",")
+                    if len(parts) < 1:
+                        temp_f.write(line + "\n")
+                        continue
+                    # 匹配截图编号
+                    if parts[0] == f"{self.last_race_log['scount']:05d}":
+                        # 更新附加道具列
+                        parts[-1] = items_str
+                        updated_line = ",".join(parts)
+                        temp_f.write(updated_line + "\n")
+                        updated = True
+                    else:
+                        temp_f.write(line + "\n")
+            # 替换原日志文件
+            if updated:
+                os.replace(temp_log_path, log_path)
+            else:
+                os.remove(temp_log_path)
+            return updated
 
     def _worker_loop(self):
         """后台消费队列，逐帧调用识别处理函数。"""
@@ -119,14 +197,11 @@ class RaceRecorder:
             config_module.CAPTURE_INTERVAL = 0.1
             self.next_slow_time = None
 
-
-
         if now_dt is None:
             now_dt = datetime.now()
         if scount is None:
             scount = self.screenshot_count
 
-        
         # 2) 如果没有 race_result，则在 ROI_RACE_NEXT 区域匹配 race_next
         rn = match_template_in_region(screen_gray, TEMPLATE_RACE_NEXT, ROI_RACE_NEXT, threshold=MATCH_FINE)
         if rn:
@@ -134,10 +209,7 @@ class RaceRecorder:
             if self.next_slow_time is None:
                 self.next_slow_time = now_dt + timedelta(seconds=1)
 
-
-
-
-                # 2) 如果没有 race_result，则在 ROI_RACE_NEXT 区域匹配 race_next
+        # 道具掉落识别（优先处理）
         ri = match_template_in_region(screen_gray, TEMPLATE_RACE_ITEM, ROI_ITEM_DROP, threshold=MATCH_FINE)
         if ri:
             # 轮流匹配 item_01 到 item_10 并写入对应道具名
@@ -162,30 +234,22 @@ class RaceRecorder:
                     name = item_names.get(i, f'item_{i:02d}')
                     found_items.append(name)
 
-            # 根据找到的道具数量处理日志
+            # 根据找到的道具数量处理（无掉落不输出）
             if found_items:
-
-                # 如果需要汇总记录
+                # 汇总道具
                 if len(found_items) > 1:
                     items_str = ', '.join(found_items)
-
-                    print(f"\033[95m掉落{items_str}\033[0m")
-                    self._write_log(('item_drop', 'multiple'), f"TYPE:其他 | ITEM:{items_str}", now_dt, scount=scount-1)
-                    return
-                
+                    # 控制台输出去重
+                    self._console_output_duplicate_check(('item_drop', 'multiple'), f"\033[95m掉落{items_str}\033[0m")
+                    # 更新上一个比赛的道具信息
+                    self._update_last_race_items(found_items)
                 else:
-                    # 只有一个道具，记录具体名称
                     item_name = found_items[0]
-                    print(f"\033[95m掉落{item_name}\033[0m")
-                    self._write_log(('item_drop', item_name), f"TYPE:其他 | ITEM:{item_name}", now_dt, scount=scount-1)
-                    return
-                
-            else:
-                # 没有找到任何道具，日志记录：无掉落
-                self._write_log(('item_drop', 'none'), f"TYPE:其他 | ITEM:无", now_dt, scount=scount-1)
+                    # 控制台输出去重
+                    self._console_output_duplicate_check(('item_drop', item_name), f"\033[95m掉落{item_name}\033[0m")
+                    # 更新上一个比赛的道具信息
+                    self._update_last_race_items(found_items)
             return
-        
-
 
         # 1) 在 ROI_RACE_RESULT 区域匹配 race_result 模板
         rr = match_template_in_region(screen_gray, TEMPLATE_RACE_RESULT, ROI_RACE_RESULT, threshold=MATCH_FINE)
@@ -217,9 +281,6 @@ class RaceRecorder:
                 self._record_race(screen_bgr, screen_gray, now_dt, success=False, scount=scount)
             return
 
-
-
-
         # 4) 检查 other_home 模板（钻石识别）
         oh = match_template_loc(screen_gray, TEMPLATE_OTHER_HOME, threshold=0.6)
         if oh:
@@ -229,8 +290,9 @@ class RaceRecorder:
         # 5) 检查 other_jinhui 模板
         oj = match_template_loc(screen_gray, TEMPLATE_OTHER_JINHUI, threshold=MATCH_ROUGH)
         if oj:
-            print("\033[94m金回hint已习得\033[0m")
-            self._write_log(('jinhui',), "TYPE:其他 | 事件:金回hint已习得", now_dt, scount=scount-1)
+            # 控制台输出去重
+            self._console_output_duplicate_check(('jinhui',), "\033[94m金回hint已习得\033[0m")
+            self._write_log(('jinhui',), ("其他", "-", "-", "-", "金回hint已习得"), now_dt, scount=scount-1)
             return
 
         # 6) 检查跳过/因子
@@ -293,18 +355,20 @@ class RaceRecorder:
         if self.prev_diamond is None:
             self.prev_diamond = current
             self.last_diamond_time = now_ts
-            print(f"当前钻石：{current}")
-            # 去重 key 包含当前钻石数
-            self._write_log(('diamond', current), f"等级:- | 比赛:- | 信息:- | 身位:- | 钻石：{current}", now_ts, scount=scount)
+            # 控制台输出去重
+            self._console_output_duplicate_check(('diamond', current), f"当前钻石：{current}")
+            # 写入CSV日志
+            self._write_log(('diamond', current), ("其他", "-", "-", "-", f"钻石：{current}"), now_ts, scount=scount)
         else:
             diff = current - self.prev_diamond
             self.prev_diamond = current
             # 300秒限制
             if self.last_diamond_time is None or (now_ts - self.last_diamond_time).total_seconds() > 300:
-                print(f"当前钻石：{current}，相比上局增加：{diff}")
-                # 写入使用上一次截图编号（使用帧编号 - 1）
+                # 控制台输出去重
+                self._console_output_duplicate_check(('diamond_increase', current, diff), f"当前钻石：{current}，相比上局增加：{diff}")
+                # 写入CSV日志
                 prev_scount = scount - 1 if scount is not None else None
-                self._write_log(('diamond_increase', current, diff), f"等级:- | 比赛:- | 信息:- | 身位:- | 钻石：{current} | 增加：{diff}", now_ts, scount=prev_scount)
+                self._write_log(('diamond_increase', current, diff), ("其他", "-", "-", "-", f"钻石：{current} | 增加：{diff}"), now_ts, scount=prev_scount)
                 self.last_diamond_time = now_ts
 
     def _record_race(self, screen_bgr, screen_gray, now_dt, success=True, scount=None):
@@ -334,36 +398,46 @@ class RaceRecorder:
                 if self.last_record["timestamp"] and \
                    (now_dt - self.last_record["timestamp"]).total_seconds() < TIME_WINDOW:
                     return
-                
 
         ts = now_dt.strftime("%Y-%m-%d %H:%M:%S")
         # 若 success=False，标注为失败
         if not success:
             position_result = "失败"  # 身位直接标注为失败
 
-
-        msg = f"TYPE:比赛 | 等级:{race_level} | 比赛:{race_name} | 身位:{position_result}"
-
+        # 构造日志内容
+        msg_parts = ("比赛", race_level, race_name, position_result, "-")  # 初始道具为"-"
         key = ('race', race_level, race_name, position_result)
-        # 以统一方法写入日志（会做去重）
-        wrote = self._write_log(key, msg, now_dt, scount=scount)
+        # 以统一方法写入CSV日志（会做去重）
+        wrote = self._write_log(key, msg_parts, now_dt, scount=scount)
 
         # 打印使用该帧的截图编号（若未提供则使用当前计数）
         use_scount = scount if scount is not None else self.screenshot_count
 
+        # 控制台输出去重
+        console_key = ('race', position_result, race_name)
         if position_result == "大差距":
-            print(f"{use_scount:05d} | {ts} | \033[92m{position_result}\033[0m")
+            self._console_output_duplicate_check(console_key, f"{use_scount:05d} | {ts} | \033[92m{position_result}\033[0m")
         elif position_result == "身位不足":
-            print(f"{use_scount:05d} | {ts} | \033[93m{position_result}\033[0m")
+            self._console_output_duplicate_check(console_key, f"{use_scount:05d} | {ts} | \033[93m{position_result}\033[0m")
         elif position_result == "失败":
-            print(f"{use_scount:05d} | {ts} | \033[91m{position_result}\033[0m")
+            self._console_output_duplicate_check(console_key, f"{use_scount:05d} | {ts} | \033[91m{position_result}\033[0m")
         else:
-            print(f"{use_scount:05d} | {ts} | {position_result}")
+            self._console_output_duplicate_check(console_key, f"{use_scount:05d} | {ts} | {position_result}")
 
-        # 只有在成功写入比赛日志时，才递增日志编号（线程安全）
+        # 只有在成功写入比赛日志时，才递增日志编号（线程安全）并缓存比赛信息
         if wrote:
             with self._lock:
                 self.screenshot_count += 1
+            # 缓存当前比赛信息，用于后续追加道具
+            with self._race_log_lock:
+                self.last_race_log.update({
+                    "scount": use_scount,
+                    "ts": ts,
+                    "level": race_level,
+                    "name": race_name,
+                    "position": position_result,
+                    "items": []  # 重置道具列表
+                })
 
         with self._lock:
             self.last_record.update({
