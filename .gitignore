@@ -974,3 +974,7 @@ dist/UmaRaceRecorder/_internal/setuptools/_vendor/importlib_metadata-8.0.0.dist-
 dist/UmaRaceRecorder/_internal/setuptools/_vendor/importlib_metadata-8.0.0.dist-info/WHEEL
 dist/UmaRaceRecorder/_internal/setuptools/_vendor/jaraco/text/Lorem ipsum.txt
 UmaRaceRecorder.spec
+__pycache__/config.cpython-314.pyc
+__pycache__/logic.cpython-314.pyc
+__pycache__/utils.cpython-314.pyc
+__pycache__/vision.cpython-314.pyc
