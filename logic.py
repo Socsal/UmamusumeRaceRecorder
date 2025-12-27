@@ -56,9 +56,8 @@ class RaceRecorder:
         # 保护 last_race_log 的并发访问
         self._race_log_lock = threading.Lock()
 
-        # 初始化CSV日志文件 - 解决跨设备编码兼容性问题
+        # 初始化CSV日志文件
         if not os.path.isfile(log_path):
-            # 使用UTF-8 BOM 确保在所有设备上正确识别编码
             with open(log_path, "w", encoding="utf-8-sig") as f:
                 # 写入CSV表头
                 f.write("序号,时间,类型,等级,名称,身位,其他\n")
@@ -194,21 +193,14 @@ class RaceRecorder:
         支持异步调用：接受 `now_dt`（帧捕获时间）和 `scount`（该帧编号）。
         若未传入则在函数内使用当前时间与默认编号。
         """
-        if self.next_slow_time is not None and now_dt >= self.next_slow_time:
-            config_module.CAPTURE_INTERVAL = 0.1
-            self.next_slow_time = None
+
 
         if now_dt is None:
             now_dt = datetime.now()
         if scount is None:
             scount = self.screenshot_count
 
-        # 2) 如果没有 race_result，则在 ROI_RACE_NEXT 区域匹配 race_next
-        rn = match_template_in_region(screen_gray, TEMPLATE_RACE_NEXT, ROI_RACE_NEXT, threshold=MATCH_FINE)
-        if rn:
-            # 识别到 race_next 时，过一秒后放慢截图间隔
-            if self.next_slow_time is None:
-                self.next_slow_time = now_dt + timedelta(seconds=1)
+
 
         # 道具掉落识别（优先处理）
         ri = match_template_in_region(screen_gray, TEMPLATE_RACE_ITEM, ROI_ITEM_DROP, threshold=MATCH_FINE)
@@ -216,7 +208,7 @@ class RaceRecorder:
             # 轮流匹配 item_01 到 item_10 并写入对应道具名
             item_names = {
                 1: '钻石', 
-                2: '女神像'
+                2: '女神像',
             }
 
             found_items = []  # 存储所有找到的道具
@@ -254,20 +246,23 @@ class RaceRecorder:
         # 1) 在 ROI_RACE_RESULT 区域匹配 race_result 模板
         rr = match_template_in_region(screen_gray, TEMPLATE_RACE_RESULT, ROI_RACE_RESULT, threshold=MATCH_FINE)
         if rr:
-            # 在指定区域 (80,150) 到 (320,380) 内匹配 race_winner.png 模板
+            # 在 winner 区域判断胜负（改为检查屏幕上点 (200,300) 的色值是否为 #FFDD50）
             win = 0
             try:
-                winner_region = (80, 150, 320, 380)
-                winner_match = match_template_in_region(screen_gray, TEMPLATE_RACE_WINNER, winner_region, threshold=0.8)
-                if winner_match:
-                    win = 1
+                h, w = screen_bgr.shape[:2]
+                px_x, px_y = 500, 700
+                if 0 <= px_x < w and 0 <= px_y < h:
+                    b = int(screen_bgr[px_y, px_x, 0])
+                    g = int(screen_bgr[px_y, px_x, 1])
+                    r = int(screen_bgr[px_y, px_x, 2])
+
+                    #FFF5C7 -> RGB(255,245,199) -> BGR(199,245,255)
+                    # Allow ±10 tolerance range for RGB values
+                    if abs(r - 255) <= 10 and abs(g - 245) <= 10 and abs(b - 199) <= 10:
+                        win = 1
             except Exception:
                 win = 0
-            # 识别到 race_result 时加快截图间隔
-            try:
-                config_module.CAPTURE_INTERVAL = 0.05
-            except Exception:
-                pass
+
             if win == 1:
                 self._record_race(screen_bgr, screen_gray, now_dt, success=True, scount=scount)
             else:
@@ -285,47 +280,33 @@ class RaceRecorder:
         if oj:
             # 控制台输出去重
             self._console_output_duplicate_check(('jinhui',), "\033[94m金回hint\033[0m")
-            self._write_log(('jinhui',), ("其他", "-", "-", "-", "金回hint"), now_dt, scount=scount-1)
+            self._write_log(('jinhui',), ("其他", "-", "-", "-", "金回hint已习得"), now_dt, scount=scount-1)
             return
 
-        # 6) 检查跳过/因子
-        if AUTO_CLICK_SKIP == 1 and AUTO_CLICK_YINZI == 1:
-            loc = match_template_loc(screen_gray, TEMPLATE_Skip, threshold=MATCH_ROUGH) or \
-                  match_template_loc(screen_gray, TEMPLATE_Yinzi, threshold=MATCH_ROUGH)
-            if loc:
-                cx, cy = loc[0], loc[1]
-                adb_tap(self.device_id, cx, cy)
-                return
-        elif AUTO_CLICK_SKIP == 1:
-            loc = match_template_loc(screen_gray, TEMPLATE_Skip, threshold=MATCH_ROUGH)
-            if loc:
-                cx, cy = loc[0], loc[1]
-                adb_tap(self.device_id, cx, cy)
-                return
-        elif AUTO_CLICK_YINZI == 1:
-            loc = match_template_loc(screen_gray, TEMPLATE_Yinzi, threshold=MATCH_ROUGH)
-            if loc:
-                cx, cy = loc[0], loc[1]
-                adb_tap(self.device_id, cx, cy)
-                return
+        # 6) 检查跳过/因子 (默认开启)
+        loc = match_template_loc(screen_gray, TEMPLATE_Skip, threshold=MATCH_ROUGH) or \
+              match_template_loc(screen_gray, TEMPLATE_Yinzi, threshold=MATCH_ROUGH)
+        if loc:
+            cx, cy = loc[0], loc[1]
+            adb_tap(self.device_id, cx, cy)
+            return
 
-        # 7) 检查 jitaend 模板
-        if AUTO_CLICK_JITAEND == 1:
-            loc = match_template_loc(screen_gray, TEMPLATE_JitaEnd, threshold=MATCH_ROUGH)
-            if loc:
-                cx, cy = loc[0], loc[1]
-                adb_tap(self.device_id, cx, cy)
-                time.sleep(1)
-                adb_tap(self.device_id, 520, 1070)
-                time.sleep(1)
-                adb_tap(self.device_id, 700, 40)
-                time.sleep(1)
-                adb_tap(self.device_id, 700, 40)
-                time.sleep(1)
-                adb_tap(self.device_id, 490, 180)
-                time.sleep(5)
-                adb_tap(self.device_id, 360, 1210)
-                return
+        # 7) 检查 jitaend 模板 (默认开启)
+        loc = match_template_loc(screen_gray, TEMPLATE_JitaEnd, threshold=MATCH_ROUGH)
+        if loc:
+            cx, cy = loc[0], loc[1]
+            adb_tap(self.device_id, cx, cy)
+            time.sleep(1)
+            adb_tap(self.device_id, 520, 1070)
+            time.sleep(1)
+            adb_tap(self.device_id, 700, 40)
+            time.sleep(1)
+            adb_tap(self.device_id, 700, 40)
+            time.sleep(1)
+            adb_tap(self.device_id, 490, 180)
+            time.sleep(5)
+            adb_tap(self.device_id, 360, 1210)
+            return
 
     def _process_diamond(self, screen_bgr, now_dt, scount=None):
         """处理钻石识别逻辑
@@ -366,7 +347,6 @@ class RaceRecorder:
 
     def _record_race(self, screen_bgr, screen_gray, now_dt, success=True, scount=None):
         """根据原逻辑记录 race 日志；若 success=False 则记录为失败（但仍写格式）"""
-        # 不再需要角色检测，匹配到 winner 即可记录
 
         # 匹配竞赛等级
         level_templates = {"G1": TEMPLATE_G1, "G2": TEMPLATE_G2, "G3": TEMPLATE_G3, "URA": TEMPLATE_SP}

@@ -71,7 +71,7 @@ ROI_RACE_GEMS = (0,0, 720, 1280)
 
 
 # ========= 时间与去重参数 =========
-CAPTURE_INTERVAL = 0.1  # 截图间隔（秒）
+CAPTURE_INTERVAL = 0.05  # 截图间隔（秒）
 TIME_WINDOW = 5         # 去重时间窗口（秒）
 LAST_DIAMOND_TIME = None  # 上次钻石记录时间
 PREV_DIAMOND = None     # 上次钻石数值
