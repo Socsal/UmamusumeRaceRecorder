@@ -254,20 +254,13 @@ class RaceRecorder:
         # 1) 在 ROI_RACE_RESULT 区域匹配 race_result 模板
         rr = match_template_in_region(screen_gray, TEMPLATE_RACE_RESULT, ROI_RACE_RESULT, threshold=MATCH_FINE)
         if rr:
-            # 在 winner 区域判断胜负（改为检查屏幕上点 (200,300) 的色值是否为 #FFDD50）
+            # 在指定区域 (80,150) 到 (320,380) 内匹配 race_winner.png 模板
             win = 0
             try:
-                h, w = screen_bgr.shape[:2]
-                px_x, px_y = 500, 700
-                if 0 <= px_x < w and 0 <= px_y < h:
-                    b = int(screen_bgr[px_y, px_x, 0])
-                    g = int(screen_bgr[px_y, px_x, 1])
-                    r = int(screen_bgr[px_y, px_x, 2])
-
-                    #FFF5C7 -> RGB(255,245,199) -> BGR(199,245,255)
-                    # #FFDD50 -> RGB(255,221,80) -> BGR(80,221,255)
-                    if (r, g, b) == (255,245,199):
-                        win = 1
+                winner_region = (80, 150, 320, 380)
+                winner_match = match_template_in_region(screen_gray, TEMPLATE_RACE_WINNER, winner_region, threshold=0.8)
+                if winner_match:
+                    win = 1
             except Exception:
                 win = 0
             # 识别到 race_result 时加快截图间隔
@@ -356,7 +349,7 @@ class RaceRecorder:
             self.prev_diamond = current
             self.last_diamond_time = now_ts
             # 控制台输出去重
-            self._console_output_duplicate_check(('diamond', current), f"当前钻石：{current}")
+            self._console_output_duplicate_check(('diamond', current), f"\033[92m当前钻石：{current}\033[0m")
             # 写入CSV日志
             self._write_log(('diamond', current), ("其他", "-", "-", "-", f"钻石：{current}"), now_ts, scount=scount)
         else:
@@ -365,7 +358,7 @@ class RaceRecorder:
             # 300秒限制
             if self.last_diamond_time is None or (now_ts - self.last_diamond_time).total_seconds() > 300:
                 # 控制台输出去重
-                self._console_output_duplicate_check(('diamond_increase', current, diff), f"当前钻石：{current}，相比上局增加：{diff}")
+                self._console_output_duplicate_check(('diamond_increase', current, diff), f"\033[92m当前钻石：{current}，相比上局增加：{diff}\033[0m")
                 # 写入CSV日志
                 prev_scount = scount - 1 if scount is not None else None
                 self._write_log(('diamond_increase', current, diff), ("其他", "-", "-", "-", f"钻石：{current} | 增加：{diff}"), now_ts, scount=prev_scount)
@@ -418,7 +411,7 @@ class RaceRecorder:
         if position_result == "大差距":
             self._console_output_duplicate_check(console_key, f"{use_scount:05d} | {ts} | \033[92m{position_result}\033[0m")
         elif position_result == "身位不足":
-            self._console_output_duplicate_check(console_key, f"{use_scount:05d} | {ts} | \033[93m{position_result}\033[0m")
+            self._console_output_duplicate_check(console_key, f"{use_scount:05d} | {ts} | \033[91m{position_result}\033[0m")
         elif position_result == "失败":
             self._console_output_duplicate_check(console_key, f"{use_scount:05d} | {ts} | \033[91m{position_result}\033[0m")
         else:
