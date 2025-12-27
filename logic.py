@@ -56,9 +56,10 @@ class RaceRecorder:
         # 保护 last_race_log 的并发访问
         self._race_log_lock = threading.Lock()
 
-        # 初始化CSV日志文件
+        # 初始化CSV日志文件 - 解决跨设备编码兼容性问题
         if not os.path.isfile(log_path):
-            with open(log_path, "w", encoding="utf-8") as f:
+            # 使用UTF-8 BOM 确保在所有设备上正确识别编码
+            with open(log_path, "w", encoding="utf-8-sig") as f:
                 # 写入CSV表头
                 f.write("序号,时间,类型,等级,名称,身位,其他\n")
 
@@ -215,13 +216,12 @@ class RaceRecorder:
             # 轮流匹配 item_01 到 item_10 并写入对应道具名
             item_names = {
                 1: '钻石', 
-                2: '女神像',
-                3: '梦想光辉'
+                2: '女神像'
             }
 
             found_items = []  # 存储所有找到的道具
 
-            for i in range(1, 4):
+            for i in range(1, 3):
                 tpl = getattr(config_module, f'TEMPLATE_ITEM_{i:02d}', None)
                 if tpl is None:
                     # 退回到全局名称（import *）查找
@@ -291,8 +291,8 @@ class RaceRecorder:
         oj = match_template_loc(screen_gray, TEMPLATE_OTHER_JINHUI, threshold=MATCH_ROUGH)
         if oj:
             # 控制台输出去重
-            self._console_output_duplicate_check(('jinhui',), "\033[94m金回hint已习得\033[0m")
-            self._write_log(('jinhui',), ("其他", "-", "-", "-", "金回hint已习得"), now_dt, scount=scount-1)
+            self._console_output_duplicate_check(('jinhui',), "\033[94m金回hint\033[0m")
+            self._write_log(('jinhui',), ("其他", "-", "-", "-", "金回hint"), now_dt, scount=scount-1)
             return
 
         # 6) 检查跳过/因子
