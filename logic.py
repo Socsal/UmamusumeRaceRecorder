@@ -248,9 +248,9 @@ class RaceRecorder:
         if rr:
             # 在 winner 区域判断胜负（改为检查屏幕上点 (200,300) 的色值是否为 #FFDD50）
             win = 0
+            px_x, px_y = 500, 700
             try:
                 h, w = screen_bgr.shape[:2]
-                px_x, px_y = 500, 700
                 if 0 <= px_x < w and 0 <= px_y < h:
                     b = int(screen_bgr[px_y, px_x, 0])
                     g = int(screen_bgr[px_y, px_x, 1])
@@ -258,7 +258,7 @@ class RaceRecorder:
 
                     #FFF5C7 -> RGB(255,245,199) -> BGR(199,245,255)
                     # Allow ±10 tolerance range for RGB values
-                    if abs(r - 255) <= 10 and abs(g - 245) <= 10 and abs(b - 199) <= 10:
+                    if abs(r - 255) <= 10 and abs(g - 245) <= 10 and abs(b - 199) <= 52:
                         win = 1
             except Exception:
                 win = 0
@@ -386,16 +386,16 @@ class RaceRecorder:
         # 打印使用该帧的截图编号（若未提供则使用当前计数）
         use_scount = scount if scount is not None else self.screenshot_count
 
-        # 控制台输出去重
+        # 控制台输出去重并保存截图
         console_key = ('race', position_result, race_name)
         if position_result == "大差距":
-            self._console_output_duplicate_check(console_key, f"{use_scount:05d} | {ts} | \033[92m{position_result}\033[0m")
+            console_output_success = self._console_output_duplicate_check(console_key, f"{use_scount:05d} | {ts} | \033[92m{position_result}\033[0m")
         elif position_result == "身位不足":
-            self._console_output_duplicate_check(console_key, f"{use_scount:05d} | {ts} | \033[91m{position_result}\033[0m")
+            console_output_success = self._console_output_duplicate_check(console_key, f"{use_scount:05d} | {ts} | \033[91m{position_result}\033[0m")
         elif position_result == "失败":
-            self._console_output_duplicate_check(console_key, f"{use_scount:05d} | {ts} | \033[91m{position_result}\033[0m")
+            console_output_success = self._console_output_duplicate_check(console_key, f"{use_scount:05d} | {ts} | \033[91m{position_result}\033[0m")
         else:
-            self._console_output_duplicate_check(console_key, f"{use_scount:05d} | {ts} | {position_result}")
+            console_output_success = self._console_output_duplicate_check(console_key, f"{use_scount:05d} | {ts} | {position_result}")
 
         # 只有在成功写入比赛日志时，才递增日志编号（线程安全）并缓存比赛信息
         if wrote:
