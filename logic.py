@@ -193,6 +193,10 @@ class RaceRecorder:
         支持异步调用：接受 `now_dt`（帧捕获时间）和 `scount`（该帧编号）。
         若未传入则在函数内使用当前时间与默认编号。
         """
+        if self.next_slow_time is not None and now_dt >= self.next_slow_time:
+            config_module.CAPTURE_INTERVAL = 0.1
+            self.next_slow_time = None
+
 
 
         if now_dt is None:
@@ -200,7 +204,12 @@ class RaceRecorder:
         if scount is None:
             scount = self.screenshot_count
 
-
+        # 2) 如果没有 race_result，则在 ROI_RACE_NEXT 区域匹配 race_next
+        rn = match_template_in_region(screen_gray, TEMPLATE_RACE_NEXT, ROI_RACE_NEXT, threshold=MATCH_FINE)
+        if rn:
+            # 识别到 race_next 时，过一秒后放慢截图间隔
+            if self.next_slow_time is None:
+                self.next_slow_time = now_dt + timedelta(seconds=1)
 
         # 道具掉落识别（优先处理）
         ri = match_template_in_region(screen_gray, TEMPLATE_RACE_ITEM, ROI_ITEM_DROP, threshold=MATCH_FINE)
@@ -262,6 +271,13 @@ class RaceRecorder:
                         win = 1
             except Exception:
                 win = 0
+
+            # 识别到 race_result 时加快截图间隔
+            try:
+                config_module.CAPTURE_INTERVAL = 0.05
+            except Exception:
+                pass
+
 
             if win == 1:
                 self._record_race(screen_bgr, screen_gray, now_dt, success=True, scount=scount)
