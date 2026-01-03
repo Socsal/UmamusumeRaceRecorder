@@ -4,6 +4,7 @@ from utils import resource_path
 from config import REGION5, MATCH_FINE, MATCH_ROUGH
 import os
 import re
+import numpy as np
 
 
 
@@ -14,16 +15,34 @@ MATCH_FINE = 0.99
 MATCH_ROUGH = 0.8
 
 
+# ========= 模板读取函数 =========
+def read_template(template_path, flag=cv2.IMREAD_GRAYSCALE):
+    """
+    读取图像模板，支持 Unicode 路径（解决中文目录无法读取的问题）
+    使用 numpy 读取二进制数据，然后用 cv2.imdecode 解码
+    """
+    try:
+        with open(template_path, 'rb') as f:
+            img_data = np.frombuffer(f.read(), np.uint8)
+            img = cv2.imdecode(img_data, flag)
+            if img is None:
+                print(f"[错误] 无法解码图片：{template_path}")
+            return img
+    except FileNotFoundError:
+        print(f"[错误] 模板不存在：{template_path}")
+        return None
+    except Exception as e:
+        print(f"[错误] 读取模板时出错：{template_path}，{e}")
+        return None
+
 # ========= 模板匹配函数 =========
 def match_template(img_gray, template_path, threshold=MATCH_FINE):
-    tmpl = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
+    tmpl = read_template(template_path, cv2.IMREAD_GRAYSCALE)
     if tmpl is None:
-        print(f"[错误] 模板不存在：{template_path}")
         return False
     res = cv2.matchTemplate(img_gray, tmpl, cv2.TM_CCOEFF_NORMED)
     _, max_val, _, _ = cv2.minMaxLoc(res)
     return max_val >= threshold
-
 
 
 
@@ -32,9 +51,8 @@ def MATCH_ROUGHtemplate(img_gray, template_path, threshold=MATCH_ROUGH):
     # 只在REGION5区域内进行匹配
     x1, y1, x2, y2 = REGION5
     roi = img_gray[y1:y2, x1:x2]
-    tmpl = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
+    tmpl = read_template(template_path, cv2.IMREAD_GRAYSCALE)
     if tmpl is None:
-        print(f"[错误] 模板不存在：{template_path}")
         return False
     if roi.shape[0] < tmpl.shape[0] or roi.shape[1] < tmpl.shape[1]:
         print("[错误] ROI区域小于模板，无法匹配")
@@ -50,7 +68,7 @@ def match_template_label(img_gray, roi_coords, template_dict):
     best_label = None
     best_score = 0
     for label, path in template_dict.items():
-        tmpl = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
+        tmpl = read_template(path, cv2.IMREAD_GRAYSCALE)
         if tmpl is None or roi.shape[0] < tmpl.shape[0] or roi.shape[1] < tmpl.shape[1]:
             continue
         res = cv2.matchTemplate(roi, tmpl, cv2.TM_CCOEFF_NORMED)
@@ -68,15 +86,12 @@ def match_template_label(img_gray, roi_coords, template_dict):
 
 
 
-
-
-
 def match_template_loc(img_gray, template_path, threshold=MATCH_FINE):
     """
     在整张灰度图上匹配模板，返回匹配中心坐标 (cx, cy) 和匹配矩形 (x, y, w, h)
     若未达到阈值返回 None
     """
-    tmpl = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
+    tmpl = read_template(template_path, cv2.IMREAD_GRAYSCALE)
     if tmpl is None:
         # 模板不存在
         return None
@@ -100,7 +115,7 @@ def match_template_in_region(img_gray, template_path, region, threshold=MATCH_FI
     """
     x1, y1, x2, y2 = region
     roi = img_gray[y1:y2, x1:x2]
-    tmpl = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
+    tmpl = read_template(template_path, cv2.IMREAD_GRAYSCALE)
     if tmpl is None:
         return None
     if roi.shape[0] < tmpl.shape[0] or roi.shape[1] < tmpl.shape[1]:

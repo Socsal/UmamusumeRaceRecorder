@@ -230,7 +230,7 @@ class RaceRecorder:
                 if tpl is None:
                     continue
                 
-                loc = match_template_in_region(screen_gray, tpl, ROI_ITEM_DROP, threshold=0.5)
+                loc = match_template_in_region(screen_gray, tpl, ROI_ITEM_DROP, threshold=0.6)
                 if loc:
                     name = item_names.get(i, f'item_{i:02d}')
                     found_items.append(name)
@@ -241,13 +241,15 @@ class RaceRecorder:
                 if len(found_items) > 1:
                     items_str = ', '.join(found_items)
                     # 控制台输出去重
-                    self._console_output_duplicate_check(('item_drop', 'multiple'), f"\033[95m掉落{items_str}\033[0m")
+                    ts = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+                    self._console_output_duplicate_check(('item_drop', 'multiple'), f"{scount:05d} | {ts} | \033[5;97;44m掉落{items_str}\033[0m")
                     # 更新上一个比赛的道具信息
                     self._update_last_race_items(found_items)
                 else:
                     item_name = found_items[0]
                     # 控制台输出去重
-                    self._console_output_duplicate_check(('item_drop', item_name), f"\033[95m掉落{item_name}\033[0m")
+                    ts = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+                    self._console_output_duplicate_check(('item_drop', item_name), f"{scount:05d} | {ts} | \033[5;97;44m掉落{item_name}\033[0m")
                     # 更新上一个比赛的道具信息
                     self._update_last_race_items(found_items)
             return
@@ -295,8 +297,9 @@ class RaceRecorder:
         oj = match_template_loc(screen_gray, TEMPLATE_OTHER_JINHUI, threshold=MATCH_ROUGH)
         if oj:
             # 控制台输出去重
-            self._console_output_duplicate_check(('jinhui',), "\033[94m金回hint\033[0m")
-            self._write_log(('jinhui',), ("其他", "-", "-", "-", "金回hint已习得"), now_dt, scount=scount-1)
+            ts = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+            self._console_output_duplicate_check(('jinhui',), f"{scount:05d} | {ts} | \033[94m金回hint\033[0m")
+            self._write_log(('jinhui',), ("其他", "-", "-", "-", "金回hint"), now_dt, scount=scount-1)
             return
 
         # 6) 检查跳过/因子 (默认开启)
@@ -323,6 +326,16 @@ class RaceRecorder:
             time.sleep(5)
             adb_tap(self.device_id, 360, 1210)
             return
+        
+#        # 8）检查jitastart 模板 (默认开启)
+#        loc = match_template_loc(screen_gray, TEMPLATE_JitaStart, threshold=MATCH_ROUGH)
+#        if loc:
+#            cx, cy = loc[0], loc[1]
+#            time.sleep(5)
+#            adb_tap(self.device_id, cx, cy)
+#            return
+
+
 
     def _process_diamond(self, screen_bgr, now_dt, scount=None):
         """处理钻石识别逻辑
@@ -346,7 +359,7 @@ class RaceRecorder:
             self.prev_diamond = current
             self.last_diamond_time = now_ts
             # 控制台输出去重
-            self._console_output_duplicate_check(('diamond', current), f"\033[92m当前钻石：{current}\033[0m")
+            self._console_output_duplicate_check(('diamond', current), f"\033[97;102m钻石：{current}\033[0m")
             # 写入CSV日志
             self._write_log(('diamond', current), ("其他", "-", "-", "-", f"钻石：{current}"), now_ts, scount=scount)
         else:
@@ -355,7 +368,7 @@ class RaceRecorder:
             # 300秒限制
             if self.last_diamond_time is None or (now_ts - self.last_diamond_time).total_seconds() > 300:
                 # 控制台输出去重
-                self._console_output_duplicate_check(('diamond_increase', current, diff), f"\033[92m当前钻石：{current}，相比上局增加：{diff}\033[0m")
+                self._console_output_duplicate_check(('diamond_increase', current, diff), f"\033[97;102m钻石：{current}，增加：{diff}\033[0m")
                 # 写入CSV日志
                 prev_scount = scount - 1 if scount is not None else None
                 self._write_log(('diamond_increase', current, diff), ("其他", "-", "-", "-", f"钻石：{current} | 增加：{diff}"), now_ts, scount=prev_scount)

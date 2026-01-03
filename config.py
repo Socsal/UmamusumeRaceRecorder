@@ -16,6 +16,7 @@ TEMPLATE_LON = resource_path("assets/templates/margin_LON.png")
 
 TEMPLATE_Skip = resource_path("assets/templates/other_skip.png")
 TEMPLATE_JitaEnd = resource_path("assets/templates/other_jitaend.png")
+TEMPLATE_JitaStart = resource_path("assets/templates/other_jitastart.png")
 TEMPLATE_Yinzi = resource_path("assets/templates/other_yinzi.png")
 
 # ========== 额外模板 ==========
@@ -59,14 +60,13 @@ REGION4 = (550, 800, 700, 900)     # 区域4
 REGION5 = (30, 930, 700, 1070)     # 掉落区域
 
 # ========== 逻辑用 ROI 常量（x1,y1,x2,y2） ==========
-ROI_RACE_RESULT = (580, 660, 670, 960)
+ROI_RACE_RESULT = (550, 660, 690, 960)
 ROI_RACE_WINNER = (160, 160, 250, 220)
 ROI_RACE_NEXT = (0, 1100, 720, 1280)
 ROI_RACE_STATS = (520, 730, 630, 765)
 ROI_ITEM_DROP = (0, 610, 720, 1120)
 
 ROI_RACE_GEMS = (0,0, 720, 1280)
-
 
 
 

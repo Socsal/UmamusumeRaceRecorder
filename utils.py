@@ -8,10 +8,14 @@ from functools import lru_cache
 # ========= 获取资源路径 =========
 @lru_cache(maxsize=1)
 def resource_path(relative_path):
-    """获取资源路径，支持开发和 PyInstaller 打包"""
-    if hasattr(sys, '_MEIPASS'):
-        return os.path.join(sys._MEIPASS, relative_path)
-    return os.path.join(os.path.abspath("."), relative_path)
+    """获取资源路径，支持开发和 PyInstaller 打包，确保 Unicode 路径正确处理"""
+    try:
+        if hasattr(sys, '_MEIPASS'):
+            return os.path.join(sys._MEIPASS, relative_path)
+        return os.path.join(os.path.abspath("."), relative_path)
+    except Exception as e:
+        print(f"[错误] 获取资源路径失败：{relative_path}，{e}")
+        return relative_path
 
 # ========= 获取应用路径 =========
 @lru_cache(maxsize=1)
