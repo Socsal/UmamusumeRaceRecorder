@@ -293,48 +293,12 @@ class RaceRecorder:
             self._process_diamond(screen_bgr, now_dt, scount=scount)
             return
 
-        # 5) 检查 other_jinhui 模板
-        oj = match_template_loc(screen_gray, TEMPLATE_OTHER_JINHUI, threshold=MATCH_ROUGH)
-        if oj:
-            # 控制台输出去重
-            ts = now_dt.strftime("%Y-%m-%d %H:%M:%S")
-            self._console_output_duplicate_check(('jinhui',), f"{scount:05d} | {ts} | \033[94m金回hint\033[0m")
-            self._write_log(('jinhui',), ("其他", "-", "-", "-", "金回hint"), now_dt, scount=scount-1)
-            return
-
-        # 6) 检查跳过/因子 (默认开启)
-        loc = match_template_loc(screen_gray, TEMPLATE_Skip, threshold=MATCH_ROUGH) or \
-              match_template_loc(screen_gray, TEMPLATE_Yinzi, threshold=MATCH_ROUGH)
+        # 6) 跳过按钮/ (默认开启)
+        loc = match_template_loc(screen_gray, TEMPLATE_Skip, threshold=MATCH_ROUGH)
         if loc:
             cx, cy = loc[0], loc[1]
             adb_tap(self.device_id, cx, cy)
             return
-
-        # 7) 检查 jitaend 模板 (默认开启)
-        loc = match_template_loc(screen_gray, TEMPLATE_JitaEnd, threshold=MATCH_ROUGH)
-        if loc:
-            cx, cy = loc[0], loc[1]
-            adb_tap(self.device_id, cx, cy)
-            time.sleep(1)
-            adb_tap(self.device_id, 520, 1070)
-            time.sleep(1)
-            adb_tap(self.device_id, 700, 40)
-            time.sleep(1)
-            adb_tap(self.device_id, 700, 40)
-            time.sleep(1)
-            adb_tap(self.device_id, 490, 180)
-            time.sleep(5)
-            adb_tap(self.device_id, 360, 1210)
-            return
-        
-#        # 8）检查jitastart 模板 (默认开启)
-#        loc = match_template_loc(screen_gray, TEMPLATE_JitaStart, threshold=MATCH_ROUGH)
-#        if loc:
-#            cx, cy = loc[0], loc[1]
-#            time.sleep(5)
-#            adb_tap(self.device_id, cx, cy)
-#            return
-
 
 
     def _process_diamond(self, screen_bgr, now_dt, scount=None):
