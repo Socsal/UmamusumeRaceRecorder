@@ -293,13 +293,6 @@ class RaceRecorder:
             self._process_diamond(screen_bgr, now_dt, scount=scount)
             return
 
-        # 6) 跳过按钮/ (默认开启)
-        loc = match_template_loc(screen_gray, TEMPLATE_Skip, threshold=MATCH_ROUGH)
-        if loc:
-            cx, cy = loc[0], loc[1]
-            adb_tap(self.device_id, cx, cy)
-            return
-
 
     def _process_diamond(self, screen_bgr, now_dt, scount=None):
         """处理钻石识别逻辑
