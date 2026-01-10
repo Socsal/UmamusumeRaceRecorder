@@ -58,7 +58,7 @@ class RaceRecorder:
 
         # 初始化CSV日志文件
         if not os.path.isfile(log_path):
-            with open(log_path, "w", encoding="utf-8-sig") as f:
+            with open(log_path, "w", encoding="utf-8") as f:
                 # 写入CSV表头
                 f.write("序号,时间,类型,等级,名称,身位,其他\n")
 
